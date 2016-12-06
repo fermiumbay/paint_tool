@@ -140,6 +140,121 @@ goto *main
 gosub *getBmp
 if stat = 1 : stop
 
+sx0 = sx : sy0 = sy
+buffer 2, sx0, sy0
+pos 0, 0
+gcopy 1, 0, 0, sx0, sy0
+
+if sx0 > sy0{
+	sx0new = 500
+	sy0new = sx0new * sy0 / sx0
+}else{
+	sy0new = 500
+	sx0new = sy0new * sx0 / sy0
+}
+
+screen 0, sx0new, sy0new, , 50, 50
+title "画像1"
+pos 0, 0
+gzoom sx0new, sy0new, 2, 0, 0, sx0, sy0
+
+dialog "これに合成する画像をクリップボードにコピーしたら\nOKを押してください。", , tn
+
+gosub *getBmp
+if stat = 1 : goto *main
+if sx ! sx0 | sy ! sy0{
+	dialog "二つの画像のサイズが異なります。\n同じサイズの画像を用意してください！", 1, tn
+	goto *main
+}
+
+onexit *cover_exit
+
+if sx > sy{
+	sxnew = 500
+	synew = sxnew * sy / sx
+}else{
+	synew = 500
+	sxnew = synew * sx / sy
+}
+
+screen 3, sxnew, synew, , sx0new + 75, 50
+title "画像2"
+pos 0, 0
+gzoom sxnew, synew, 1, 0, 0, sx, sy
+
+screen 4, 240, 64, , 50, sy0new + 95
+title "調整"
+x = 1.0 : y = 1.0
+pos 5, 5 : input x, 80, , 20 : cover_input_x = stat
+pos 90, 5 : mes "："
+pos 110, 5 : input y, 80, , 20 : cover_input_y = stat
+pos 0, 32 : objsize 120, 32 : button "プレビュー", *cover_preview : cover_preview_button = stat
+pos 120, 32 : objsize 120, 32 : button "これで確定", *cover_ok : cover_ok_button = stat
+
+stop
+
+*cover_exit
+gsel 3, -1
+gsel 4, -1
+goto *main
+
+*cover_preview
+if x <= 0 | y <= 0 : dialog "比は正の数にしてください！", 1, tn : stop
+gsel 0
+pos 0, 0
+gzoom sx0new, sy0new, 2, 0, 0, sx0, sy0
+gsel 4
+objenable cover_input_x, 0
+objenable cover_input_y, 0
+objenable cover_preview_button, 0
+objenable cover_ok_button, 0
+for j, 0, sy0new
+	for i, 0, sx0new
+		gsel 0 : pget i, j
+		r1 = ginfo_r : g1 = ginfo_g : b1 = ginfo_b
+		gsel 3 : pget i, j
+		r2 = ginfo_r : g2 = ginfo_g : b2 = ginfo_b
+		r = (1.0 * x * r1 + 1.0 * y * r2) / (x + y)
+		g = (1.0 * x * g1 + 1.0 * y * g2) / (x + y)
+		b = (1.0 * x * b1 + 1.0 * y * b2) / (x + y)
+		gsel 0
+		color r, g, b
+		pset i, j
+	next
+	await
+next
+gsel 4
+objenable cover_input_x, 1
+objenable cover_input_y, 1
+objenable cover_preview_button, 1
+objenable cover_ok_button, 1
+stop
+
+*cover_ok
+if x <= 0 | y <= 0 : dialog "比は正の数にしてください！", 1, tn : stop
+gsel 4
+pos 5, 5 : mes "画像作成中..."
+for j, 0, sy0
+	for i, 0, sx0
+		gsel 2 : pget i, j
+		r1 = ginfo_r : g1 = ginfo_g : b1 = ginfo_b
+		gsel 1 : pget i, j
+		r2 = ginfo_r : g2 = ginfo_g : b2 = ginfo_b
+		r = (1.0 * x * r1 + 1.0 * y * r2) / (x + y)
+		g = (1.0 * x * g1 + 1.0 * y * g2) / (x + y)
+		b = (1.0 * x * b1 + 1.0 * y * b2) / (x + y)
+		gsel 2
+		color r, g, b
+		pset i, j
+	next
+	gsel 4
+	title "抽出中...(" + int(100.0 * j / sy + 0.5) + "％)"
+	await
+next
+gsel 2
+ClipB_SetBmp 0, 0, sx0, sy0
+goto *cover_exit
+
 *brushup
 gosub *getBmp
 if stat = 1 : stop
