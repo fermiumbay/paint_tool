@@ -3,6 +3,8 @@
 #packopt name tn
 #packopt hide 1
 
+randomize
+
 #include "ClipboardModule.as"
 
 *main
@@ -248,7 +250,7 @@ for j, 0, sy0
 		pset i, j
 	next
 	gsel 4
-	title "抽出中...(" + int(100.0 * j / sy + 0.5) + "％)"
+	title "合成中...(" + int(100.0 * j / sy + 0.5) + "％)"
 	await
 next
 gsel 2
@@ -258,3 +260,83 @@ goto *cover_exit
 *brushup
 gosub *getBmp
 if stat = 1 : stop
+
+transFlg = 0
+dialog "透明色（ぼかさない色）を適用する？\n適用する場合は(0, 0)のドットが\n透明色と見なされます。", 2, tn
+if stat = 6 : transFlg = 1
+
+if sx >= 1000 | sy >= 1000{
+	dialog "元の画像サイズが大きいため、時間が掛かる可能性があります。\nよろしいですか？\n画像サイズ: "+ sx +" × "+ sy, 3, tn
+	if stat = 7 : stop
+}
+
+if transFlg = 1{
+	pget 0, 0
+	tr = ginfo_r
+	tg = ginfo_g
+	tb = ginfo_b
+}
+screen 2, sx * 4, sy * 4
+gzoom sx * 4, sy * 4, 1, 0, 0, sx, sy
+sx *= 4
+sy *= 4
+
+for j, 0, sy
+	for i, 0, sx
+		pget i, j
+		if transFlg = 0 | ginfo_r ! tr | ginfo_g ! tg | ginfo_b ! tb{
+			r = ginfo_r + rnd(61) - 30
+			g = ginfo_g + rnd(61) - 30
+			b = ginfo_b + rnd(61) - 30
+			if r > 255 : r = 255
+			if g > 255 : g = 255
+			if b > 255 : b = 255
+			if r < 0 : r = 0
+			if g < 0 : g = 0
+			if b < 0 : b = 0
+			color r, g, b
+			pset i, j
+		}
+	next
+	title "ランダム配色中...(" + int(100.0 * j / sy + 0.5) + "％)"
+	await
+next
+
+repeat (sx * sy) / 2
+	x = (cnt * 2) \ sx : y = (cnt * 2) / sx
+	pget x, y
+	r = ginfo_r
+	g = ginfo_g
+	b = ginfo_b
+	pget x, y - 1
+	if transFlg = 0 | ginfo_r ! tr | ginfo_g ! tg | ginfo_b ! tb{
+		color (r + ginfo_r) / 2, (g + ginfo_g) / 2, (b + ginfo_b) / 2
+		pset x, y - 1
+	}
+	pget x, y + 1
+	if transFlg = 0 | ginfo_r ! tr | ginfo_g ! tg | ginfo_b ! tb{
+		color (r + ginfo_r) / 2, (g + ginfo_g) / 2, (b + ginfo_b) / 2
+		pset x, y + 1
+	}
+	pget x - 1, y
+	if transFlg = 0 | ginfo_r ! tr | ginfo_g ! tg | ginfo_b ! tb{
+		color (r + ginfo_r) / 2, (g + ginfo_g) / 2, (b + ginfo_b) / 2
+		pset x - 1, y
+	}
+	pget x + 1, y
+	if transFlg = 0 | ginfo_r ! tr | ginfo_g ! tg | ginfo_b ! tb{
+		color (r + ginfo_r) / 2, (g + ginfo_g) / 2, (b + ginfo_b) / 2
+		pset x + 1, y
+	}
+	if cnt \ 100 = 0{
+		title "ぼかし適用中...(" + int(100.0 * cnt / ((sx * sy) / 2) + 0.5) + "％)"
+		await
+	}
+loop
+
+gsel 1
+gzoom sx / 4, sy / 4, 2, 0, 0, sx, sy
+ClipB_SetBmp 0, 0, sx / 4, sy / 4
+gsel 2, -1
+goto *main
+
