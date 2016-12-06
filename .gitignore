@@ -1,0 +1,6 @@
+*.jpg
+*.png
+*.bmp
+hsptmp
+obj
+*.exe

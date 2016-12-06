@@ -1,0 +1,120 @@
+#define tn "ペイント支援ツール"
+#define fn "ＭＳ ゴシック"
+#packopt name tn
+#packopt hide 1
+
+#include "ClipboardModule.as"
+
+*main
+onexit 0
+screen 0, 320, 240, , 50, 50
+title tn
+font fn, 16
+objsize 320, 36
+objmode 2
+button "画像を回転する", *bt : command_rotate = stat
+button "指定色のみ抽出する", *bt : command_extract = stat
+button "二つの画像を合成する", *bt : command_cover = stat
+button "ランダム配色＋ぼかし", *bt : command_brushup = stat
+
+stop
+
+*bt
+switch stat
+case command_rotate : goto *rotate : swbreak
+case command_extract : goto *extract : swbreak
+case command_cover : goto *cover : swbreak
+case command_brushup : goto *brushup : swbreak
+swend
+stop
+
+*getBmp
+sx = 0 : sy = 0
+ClipB_GetBmpSize sx, sy
+
+if sx = 0 & sy = 0{
+	dialog "クリップボードに画像をコピーしてください！", 1, tn
+	return 1
+}
+return 0
+
+*rotate
+gosub *getBmp
+if stat = 1 : stop
+
+buffer 1, sx, sy
+pos 0, 0
+ClipB_GetBmp 0, 0, sx, sy
+redraw
+	
+size = sqrt(sx * sx + sy * sy)
+regular_size = 500
+rate = 1.0 * regular_size / size
+cx = regular_size / 2
+cy = regular_size / 2
+screen 0, regular_size, regular_size, , 50, 50
+onexit *main
+title "クリックで回転、EnterかSpaceで決定"
+
+time = 0
+angle = 0.0
+click_flg = 0
+
+*rotate_main
+x = mousex
+y = mousey
+hsvcolor time, 255, 255
+line -1, y, regular_size, y
+line x, -1, x, regular_size
+
+if click_flg = 1{
+	angle = atan(y - cy, x - cx) - angle_prev
+}
+	
+redraw 0
+color : boxf
+pos cx, cy
+gmode 0, sx, sy, 256
+grotate 1, 0, 0, angle, rate * sx, rate * sy
+redraw
+
+getkey key, 1
+if key{
+	if click_flg = 0{
+		click_flg = 1
+		angle_prev = atan(y - cy, x - cx) - angle
+	}
+}else{
+	click_flg = 0
+}
+
+getkey key, 13
+if key : goto *rotate_end
+getkey key, 32
+if key : goto *rotate_end
+
+time++
+await
+goto *rotate_main
+
+*rotate_end
+buffer 2, size, size
+color : boxf
+pos size / 2, size / 2
+gmode 0, sx, sy, 256
+grotate 1, 0, 0, angle, sx, sy
+ClipB_SetBmp 0, 0, size, size
+
+goto *main
+
+*extract
+gosub *getBmp
+if stat = 1 : stop
+
+*cover
+gosub *getBmp
+if stat = 1 : stop
+
+*brushup
+gosub *getBmp
+if stat = 1 : stop
