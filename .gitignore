@@ -3,4 +3,6 @@
 *.bmp
 hsptmp
 obj
+packfile
+*.ax
 *.exe

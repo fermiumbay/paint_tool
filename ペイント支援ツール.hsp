@@ -7,19 +7,33 @@ randomize
 
 #include "ClipboardModule.as"
 
+frontFlg = 0
+frontFlg_prev = frontFlg
+
 *main
 onexit 0
-screen 0, 320, 240, , 50, 50
+screen 0, 320, 180, , 50, 50
+if frontFlg = 1 : gsel 0, 2 : else : gsel 0, 1
 title tn
+syscolor 15 : boxf
+color
 font fn, 16
 objsize 320, 36
 objmode 2
+pos 10, 0 : chkbox "メインメニューを常に手前に表示する", frontFlg
+pos 0, 36
 button "画像を回転する", *bt : command_rotate = stat
 button "指定色のみ抽出する", *bt : command_extract = stat
 button "二つの画像を合成する", *bt : command_cover = stat
 button "ランダム配色＋ぼかし", *bt : command_brushup = stat
 
-stop
+*main_top
+if frontFlg_prev ! frontFlg{
+	frontFlg_prev = frontFlg
+	if frontFlg = 1 : gsel 0, 2 : else : gsel 0, 1
+}
+wait 1
+goto *main_top
 
 *bt
 switch stat
@@ -265,18 +279,21 @@ transFlg = 0
 dialog "透明色（ぼかさない色）を適用する？\n適用する場合は(0, 0)のドットが\n透明色と見なされます。", 2, tn
 if stat = 6 : transFlg = 1
 
-if sx >= 1000 | sy >= 1000{
-	dialog "元の画像サイズが大きいため、時間が掛かる可能性があります。\nよろしいですか？\n画像サイズ: "+ sx +" × "+ sy, 3, tn
+if sx >= 500 | sy >= 500{
+	dialog "これはドット絵向きの機能です。\n元の画像サイズが大きいため、時間が掛かる可能性があります。\nよろしいですか？\n画像サイズ: "+ sx +" × "+ sy, 3, tn
 	if stat = 7 : stop
 }
 
 if transFlg = 1{
+	gsel 1
 	pget 0, 0
 	tr = ginfo_r
 	tg = ginfo_g
 	tb = ginfo_b
 }
-screen 2, sx * 4, sy * 4
+
+screen 0, sx * 4, sy * 4, , 50, 50
+onexit *main
 gzoom sx * 4, sy * 4, 1, 0, 0, sx, sy
 sx *= 4
 sy *= 4
@@ -335,8 +352,7 @@ repeat (sx * sy) / 2
 loop
 
 gsel 1
-gzoom sx / 4, sy / 4, 2, 0, 0, sx, sy
+gzoom sx / 4, sy / 4, 0, 0, 0, sx, sy
 ClipB_SetBmp 0, 0, sx / 4, sy / 4
-gsel 2, -1
 goto *main
 
