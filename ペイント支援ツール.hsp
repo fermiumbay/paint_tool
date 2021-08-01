@@ -7,12 +7,83 @@ randomize
 
 #include "ClipboardModule.as"
 
+// コマンド総数
+#define command_num 5
+
+#module
+#defcfunc to_hsv int r, int g, int b
+	max_value = 255
+	max_h = 191
+	max_s = 255
+	max_v = 255
+	
+	DivH = (max_h + 1) / 6
+
+	if r >= g & r >= b {
+		max = r
+		if g <= b {
+			min = g
+		} else {
+			min = b
+		}
+		if min = max {
+			h = 0
+		} else {
+			h = int(1.0 * DivH * (1.0 * (g - b) / (max - min)))
+		}
+	}
+	else {
+	if g >= r & g >= b {
+		max = g
+		if r <= b {
+			min = r
+		} else {
+			min = b
+		}
+		if min = max {
+			h = 0
+		} else {
+			h = int(1.0 * DivH * (1.0 * (b - r) / (max - min))) + 2 * DivH
+		}
+	}
+	else {
+		if b >= r & b >= g {
+		max = b
+		if r <= g {
+			min = r
+		} else {
+			min = g
+		}
+		if min = max {
+			h = 0
+		} else {
+			h = int(1.0 * DivH * (1.0 * (r - g) / (max - min))) + 4 * DivH
+		}
+	}
+	else {
+		h = 0
+		max = min = r
+	}
+}
+	}
+	h = (h + (max_h + 1)) \ (max_h + 1)
+
+	if max = 0 {
+		s = 0
+	} else {
+		s = int(1.0 * max_s * (max - min) / max)
+	}
+	v = int(1.0 * max_v * max / max_value)
+
+	return 1000000 * h + 1000 * s + v
+#global
+
 frontFlg = 0
 frontFlg_prev = frontFlg
 
 *main
 onexit 0
-screen 0, 320, 180, , 50, 50
+screen 0, 320, 36 + 36 * command_num, , 50, 50
 if frontFlg = 1 : gsel 0, 2 : else : gsel 0, 1
 title tn
 syscolor 15 : boxf
@@ -26,6 +97,7 @@ button "画像を回転する", *bt : command_rotate = stat
 button "指定色のみ抽出する", *bt : command_extract = stat
 button "二つの画像を合成する", *bt : command_cover = stat
 button "ランダム配色＋ぼかし", *bt : command_brushup = stat
+button "画像の彩度を修正する", *bt : command_fix_s = stat
 
 *main_top
 if frontFlg_prev ! frontFlg{
@@ -43,6 +115,7 @@ case command_rotate : goto *rotate : swbreak
 case command_extract : goto *extract : swbreak
 case command_cover : goto *cover : swbreak
 case command_brushup : goto *brushup : swbreak
+case command_fix_s : goto *fix_s : swbreak
 swend
 stop
 
@@ -359,3 +432,36 @@ gzoom sx / 4, sy / 4, 0, 0, 0, sx, sy
 ClipB_SetBmp 0, 0, sx / 4, sy / 4
 goto *main
 
+*fix_s
+gosub *getBmp
+if stat = 1 : goto *main_top
+
+screen 0, sx, sy, , 50, 50
+onexit *main
+pos 0, 0
+gcopy 1, 0, 0, sx, sy
+for j, 0, sy
+	for i, 0, sx
+		pget i, j
+		r = ginfo_r
+		g = ginfo_g
+		b = ginfo_b
+	
+		hsv = to_hsv(r, g, b)
+		hsv_h = hsv / 1000000
+		hsv_s = hsv / 1000 \ 1000
+		hsv_v = hsv \ 1000
+		
+		hsv_s = hsv_s * 2 / 3
+		hsv_v = hsv_v * 210 / 255 + 45
+		
+		hsvcolor hsv_h, hsv_s, hsv_v
+		pset i, j
+	next
+	await
+	title "修正中...(" + int(100.0 * j / sy + 0.5) + "％)"
+next
+
+gsel 0
+ClipB_SetBmp 0, 0, sx, sy
+goto *main
