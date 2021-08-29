@@ -8,7 +8,7 @@ randomize
 #include "ClipboardModule.as"
 
 // コマンド総数
-#define command_num 5
+#define command_num 6
 
 #module
 #defcfunc to_hsv int r, int g, int b
@@ -81,6 +81,15 @@ randomize
 frontFlg = 0
 frontFlg_prev = frontFlg
 
+// 初期値
+thick_pt = 4
+thick_color_r = 0
+thick_color_g = 0
+thick_color_b = 0
+thick_back_color_r = 255
+thick_back_color_g = 255
+thick_back_color_b = 255
+
 *main
 onexit 0
 screen 0, 320, 36 + 36 * command_num, , 50, 50
@@ -98,6 +107,7 @@ button "指定色のみ抽出する", *bt : command_extract = stat
 button "二つの画像を合成する", *bt : command_cover = stat
 button "ランダム配色＋ぼかし", *bt : command_brushup = stat
 button "画像の彩度を修正する", *bt : command_fix_s = stat
+button "輪郭を太くする", *bt : command_thick_contour = stat
 
 *main_top
 if frontFlg_prev ! frontFlg{
@@ -116,6 +126,7 @@ case command_extract : goto *extract : swbreak
 case command_cover : goto *cover : swbreak
 case command_brushup : goto *brushup : swbreak
 case command_fix_s : goto *fix_s : swbreak
+case command_thick_contour : goto *thick_contour : swbreak
 swend
 stop
 
@@ -461,6 +472,66 @@ for j, 0, sy
 	await
 	title "修正中...(" + int(100.0 * j / sy + 0.5) + "％)"
 next
+
+gsel 0
+ClipB_SetBmp 0, 0, sx, sy
+goto *main
+
+*thick_contour
+gosub *getBmp
+if stat = 1 : goto *main_top
+
+screen 0, 260, 160
+onexit *main
+cls 1
+pos 5, 5  : mes "輪郭の太さ：" : pos 110, 3 : input thick_pt, 32, 24, 5
+pos 5, 45 : mes "輪郭の色　：" : boxf 110, 38, 110 + 32, 38 + 32 : color thick_color_r, thick_color_g, thick_color_b : boxf 110 + 1, 38 + 1, 110 + 31, 38 + 31
+pos 5, 85 : mes "背景の色　：" : boxf 110, 78, 110 + 32, 78 + 32 : color thick_back_color_r, thick_back_color_g, thick_back_color_b : boxf 110 + 1, 78 + 1, 110 + 31, 78 + 31
+pos 160, 43 : button "変更", *thick_contour_change_color
+pos 160, 83 : button "変更", *thick_contour_change_back_color
+pos 180, 130 : button "OK", *thick_contour_ok
+stop
+
+*thick_contour_change_color
+dialog "", 33
+thick_color_r = ginfo_r
+thick_color_g = ginfo_g
+thick_color_b = ginfo_b
+color thick_color_r, thick_color_g, thick_color_b : boxf 110 + 1, 38 + 1, 110 + 31, 38 + 31
+stop
+
+*thick_contour_change_back_color
+dialog "", 33
+thick_back_color_r = ginfo_r
+thick_back_color_g = ginfo_g
+thick_back_color_b = ginfo_b
+color thick_back_color_r, thick_back_color_g, thick_back_color_b : boxf 110 + 1, 78 + 1, 110 + 31, 78 + 31
+stop
+
+*thick_contour_ok
+screen 0, sx, sy, , 50, 50
+onexit *main
+color thick_back_color_r, thick_back_color_g, thick_back_color_b : boxf
+for j, 0, sy
+	for i, 0, sx
+		gsel 1
+		pget i, j
+		if ginfo_r = thick_color_r & ginfo_g = thick_color_g & ginfo_b = thick_color_b {
+			gsel 0
+			color thick_color_r, thick_color_g, thick_color_b
+			circle i - thick_pt, j - thick_pt, i + thick_pt, j + thick_pt
+		}
+	next
+	await
+	title "修正中...(" + int(100.0 * j / sy + 0.5) + "％)"
+next
+
+gsel 0
+gmode 4, sx, sy, 256
+color thick_back_color_r, thick_back_color_g, thick_back_color_b
+pos 0, 0
+gcopy 1, 0, 0, sx, sy
+gmode 0
 
 gsel 0
 ClipB_SetBmp 0, 0, sx, sy
