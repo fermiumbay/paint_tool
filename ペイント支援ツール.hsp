@@ -8,7 +8,7 @@ randomize
 #include "ClipboardModule.as"
 
 // コマンド総数
-#define command_num 6
+#define command_num 7
 
 #module
 #defcfunc to_hsv int r, int g, int b
@@ -78,6 +78,34 @@ randomize
 	return 1000000 * h + 1000 * s + v
 #global
 
+goto *@f
+	// 輪郭を保ったまま拡大縮小用 変換先点の四隅座標
+	#defcfunc zNewX1 int i_arg, int j_arg
+		return int(zoom_w * i_arg)
+	#defcfunc zNewX2 int i_arg, int j_arg
+		return int(zoom_w * (i_arg + 1)) - 1
+	#defcfunc zNewY1 int i_arg, int j_arg
+		return int(zoom_h * j_arg)
+	#defcfunc zNewY2 int i_arg, int j_arg
+		return int(zoom_h * (j_arg + 1)) - 1
+	
+	// 輪郭を保ったまま拡大縮小用 指定した座標が輪郭点かどうか判定
+	#defcfunc is_contour int i_arg, int j_arg
+		// 画面外はすべて輪郭点であるとみなす
+		if i_arg < 0 : return 1
+		if j_arg < 0 : return 1
+		if i_arg >= sx : return 1
+		if j_arg >= sy : return 1
+	
+		// 画面内の点であれば、それが輪郭の色か判定した結果を返却
+		pget i_arg, j_arg
+		if ginfo_r = br & ginfo_g = bg & ginfo_b = bb {
+			return 1
+		}
+		return 0
+		
+*@
+
 frontFlg = 0
 frontFlg_prev = frontFlg
 
@@ -108,6 +136,7 @@ button "二つの画像を合成する", *bt : command_cover = stat
 button "ランダム配色＋ぼかし", *bt : command_brushup = stat
 button "画像の彩度を修正する", *bt : command_fix_s = stat
 button "輪郭を太くする", *bt : command_thick_contour = stat
+button "輪郭を保ったまま拡大縮小", *bt : command_zoominout = stat
 
 *main_top
 if frontFlg_prev ! frontFlg{
@@ -127,6 +156,7 @@ case command_cover : goto *cover : swbreak
 case command_brushup : goto *brushup : swbreak
 case command_fix_s : goto *fix_s : swbreak
 case command_thick_contour : goto *thick_contour : swbreak
+case command_zoominout : goto *zoominout : swbreak
 swend
 stop
 
@@ -536,3 +566,208 @@ gmode 0
 gsel 0
 ClipB_SetBmp 0, 0, sx, sy
 goto *main
+
+*zoominout
+gosub *getBmp
+if stat = 1 : goto *main_top
+
+// サイズ変更モード
+gsel 0, -1
+screen 2, ginfo_dispx, ginfo_dispy, 8, 50, 50
+onexit *zoominout_cancel
+cls 4
+width sx, sy
+
+*zoominout_change_size_mode
+
+// 拡大率をウィンドウサイズで決定
+zoom_w = (1.0 * ginfo_winx) / sx
+zoom_h = (1.0 * ginfo_winy) / sy
+	
+title "ウィンドウサイズ変更、EnterかSpaceで決定(" + strf("%4.2f", zoom_w * 100.0) + "%," + strf("%4.2f", zoom_h * 100.0) + "%)"
+
+redraw 0
+color : boxf
+pos 0, 0
+gzoom ginfo_winx, ginfo_winy, 1, 0, 0, sx, sy, 0
+redraw
+
+getkey key, 13
+if key : goto *zoominout_change_main_process
+getkey key, 32
+if key : goto *zoominout_change_main_process
+
+wait 1
+goto *zoominout_change_size_mode
+
+*zoominout_change_main_process
+gsel 2, -1
+
+// 輪郭色
+br = 0
+bg = 0
+bb = 0
+
+// 拡大縮小後のウィンドウサイズ
+sx2 = int(zoom_w * sx + 0.5)
+sy2 = int(zoom_h * sy + 0.5)
+
+screen 0, sx2, sy2, , 50, 50
+onexit *main
+
+// 各点を調べて、輪郭点の場合は周りとの繋がりを考慮した描画をしていく
+for j, 0, sy
+	for i, 0, sx
+		gsel 1
+		pget i, j
+		
+		r = ginfo_r
+		g = ginfo_g
+		b = ginfo_b
+		
+		if r = br & g = bg & b = bb {
+			// 黒点の場合は繋がりも取得する
+
+			// 変換後の、中心の(x, y)座標
+			cx = (zNewX1(i, j) + zNewX2(i, j)) / 2
+			cy = (zNewY1(i, j) + zNewY2(i, j)) / 2
+	
+			// 8方向に確認していく
+			for k, 0, 8
+	
+				// 取得対象をcenterとし、そこから左回り方向をleft、右回り方向をrightとする
+				// まずはその座標をそれぞれ取得しておく
+				switch k
+				case 0	// 左上
+					x_left   = i - 1 : y_left   = j
+					x_center = i - 1 : y_center = j - 1
+					x_right  = i     : y_right  = j - 1
+					swbreak
+				case 1	// 上
+					x_left   = i - 1 : y_left   = j - 1
+					x_center = i     : y_center = j - 1
+					x_right  = i + 1 : y_right  = j - 1
+					swbreak
+				case 2	// 右上
+					x_left   = i     : y_left   = j - 1
+					x_center = i + 1 : y_center = j - 1
+					x_right  = i + 1 : y_right  = j
+					swbreak
+				case 3	// 右
+					x_left   = i + 1 : y_left   = j - 1
+					x_center = i + 1 : y_center = j
+					x_right  = i + 1 : y_right  = j + 1
+					swbreak
+				case 4	// 右下
+					x_left   = i + 1 : y_left   = j
+					x_center = i + 1 : y_center = j + 1
+					x_right  = i     : y_right  = j + 1
+					swbreak
+				case 5	// 下
+					x_left   = i + 1 : y_left   = j + 1
+					x_center = i     : y_center = j + 1
+					x_right  = i - 1 : y_right  = j + 1
+					swbreak
+				case 6	// 左下
+					x_left   = i     : y_left   = j + 1
+					x_center = i - 1 : y_center = j + 1
+					x_right  = i - 1 : y_right  = j
+					swbreak
+				case 7	// 左
+					x_left   = i - 1 : y_left   = j + 1
+					x_center = i - 1 : y_center = j
+					x_right  = i - 1 : y_right  = j - 1
+					swbreak
+				swend
+	
+				// 変換後の各座標を求めておく
+				x_left2 = (zNewX1(x_left, y_left) + zNewX2(x_left, y_left)) / 2
+				y_left2 = (zNewY1(x_left, y_left) + zNewY2(x_left, y_left)) / 2
+				x_center2 = (zNewX1(x_center, y_center) + zNewX2(x_center, y_center)) / 2
+				y_center2 = (zNewY1(x_center, y_center) + zNewY2(x_center, y_center)) / 2
+				x_right2 = (zNewX1(x_right, y_right) + zNewX2(x_right, y_right)) / 2
+				y_right2 = (zNewY1(x_right, y_right) + zNewY2(x_right, y_right)) / 2
+
+				// それぞれの座標に輪郭点があれば1、なければ0とする
+				gsel 1
+				if is_contour(x_left, y_left)     : p_left = 1   : else : p_left = 0
+				if is_contour(x_center, y_center) : p_center = 1 : else : p_center = 0
+				if is_contour(x_right, y_right)   : p_right = 1  : else : p_right = 0
+
+				// 輪郭点のパターンによって配色が変わる
+				gsel 0
+				color br, bg, bb
+				if p_left = 0 & p_center = 0 & p_right = 0 {
+					// 何も起こらない
+				}
+				if p_left = 1 & p_center = 0 & p_right = 0 {
+					// 線で繋ぐだけ
+					line x_left2, y_left2, cx, cy
+				}
+				if p_left = 0 & p_center = 1 & p_right = 0 {
+					// 線で繋ぐだけ
+					line x_center2, y_center2, cx, cy
+				}
+				if p_left = 0 & p_center = 0 & p_right = 1 {
+					// 線で繋ぐだけ
+					line x_right2, y_right2, cx, cy
+				}
+				if p_left = 1 & p_center = 0 & p_right = 1 {
+					// 二本の線でそれぞれ繋ぐ
+					line x_left2, y_left2, cx, cy
+					line x_right2, y_right2, cx, cy
+				}
+				if p_left = 1 & p_center = 1 & p_right = 0 {
+					// 三角形で塗りつぶし
+					xary = cx, cx, x_left2, x_center2
+					yary = cy, cy, y_left2, y_center2
+					gsquare -1, xary, yary
+				}
+				if p_left = 0 & p_center = 1 & p_right = 1 {
+					// 三角形で塗りつぶし
+					xary = cx, cx, x_center2, x_right2
+					yary = cy, cy, y_center2, y_right2
+					gsquare -1, xary, yary
+				}
+				if p_left = 1 & p_center = 1 & p_right = 1 {
+					// 四角形で塗りつぶし
+					xary = cx, x_left2, x_center2, x_right2
+					yary = cy, y_left2, y_center2, y_right2
+					gsquare -1, xary, yary
+				}
+
+			next
+	
+			// 中心点は描画しておく
+			gsel 0
+			color br, bg, bb
+			pset cx, cy
+		
+		} else {
+			// 黒点以外はそのまま転写する
+			// （本来は境界線をもとに色分け考えるべきなのだろうが、ここでは考慮対象外とする）
+	
+			x1 = zNewX1(i, j)
+			x2 = zNewX2(i, j)
+			y1 = zNewY1(i, j)
+			y2 = zNewY2(i, j)
+	
+			gsel 0
+			color r, g, b
+			boxf x1, y1, x2, y2
+		}
+
+	next
+	gsel 0
+	title "処理中...(" + int(100.0 * j / sy + 0.5) + "％)"
+	await
+next
+
+gsel 0
+ClipB_SetBmp 0, 0, sx2, sy2
+goto *main
+
+*zoominout_cancel
+	gsel 2, -1
+	goto *main
+	
